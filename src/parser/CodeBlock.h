@@ -32,6 +32,7 @@ class Script;
 class Value;
 class Object;
 struct ASTScopeContext;
+struct ASTBlockContext;
 struct ByteCodeGenerateContext;
 
 typedef HashMap<AtomicString, StorePositiveNumberAsOddNumber, std::hash<AtomicString>, std::equal_to<AtomicString>,
@@ -542,6 +543,13 @@ public:
         return m_parameterNames;
     }
 
+#ifndef ESCARGOT_DEBUGGER
+    uint16_t parameterUsed() const
+    {
+        return m_parameterUsed;
+    }
+#endif
+
     const IdentifierInfoVector& identifierInfos() const
     {
         return m_identifierInfos;
@@ -980,6 +988,10 @@ protected:
     ExtendedNodeLOC m_functionStart; // point to the start position
 #if !(defined NDEBUG) || defined ESCARGOT_DEBUGGER
     ExtendedNodeLOC m_bodyEndLOC;
+#endif
+
+#ifndef ESCARGOT_DEBUGGER
+    uint16_t m_parameterUsed : 16;
 #endif
 
     uint16_t m_functionLength : 16;
