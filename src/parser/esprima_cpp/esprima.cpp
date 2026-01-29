@@ -339,26 +339,33 @@ public:
     }
 
 #ifndef ESCARGOT_DEBUGGER
+
+    bool changeParameterUsedValue(ASTScopeContext* scopeCtx, AtomicString name)
+    {
+        if (scopeCtx->m_parameterTable.mayContain(name)) {
+            bool isChecked = false;
+            for (size_t i = 0; i < scopeCtx->m_parameters.size(); i++) {
+                if (scopeCtx->m_parameters[i] == name) {
+                    scopeCtx->m_parameterUsed |= (1 << i);
+                    isChecked = true;
+                }
+            }
+
+            return isChecked;
+        }
+
+        return false;
+    }
     void setParameterUsed(ASTScopeContext* scopeCtx, AtomicString name)
     {
         while (scopeCtx) {
-            if (name == "eval" || name == "arguments") {
-                scopeCtx->m_parameterUsed = 0xFFFF;
-            } else if (scopeCtx->m_parameterTable.mayContain(name)) {
-                bool isChecked = false;
-                for (size_t i = 0; i < scopeCtx->m_parameters.size(); i++) {
-                    if (scopeCtx->m_parameters[i] == name) {
-                        scopeCtx->m_parameterUsed |= (1 << i);
-                        isChecked = true;
-                    }
-                }
-
-                if (isChecked) {
+            if (LIKELY(scopeCtx->m_parameterUsed != 0xFFFF)) {
+                if (changeParameterUsedValue(scopeCtx, name)) {
                     return;
+                } else if (UNLIKELY(!scopeCtx->m_parameters.size())) {
+                    // Consider as all parameters are used to handle edge cases
+                    scopeCtx->m_parameterUsed = 0xFFFF;
                 }
-            } else if (!scopeCtx->m_parameters.size()) {
-                // This part is for adding parameter table before parsing function body
-                scopeCtx->m_parameterTable.add(name);
             }
 
             scopeCtx = scopeCtx->m_parent;
@@ -517,6 +524,11 @@ public:
             ASSERT(this->currentScopeContext->m_functionLength == this->currentScopeContext->m_parameterCount);
         }
 #endif
+#ifndef ESCARGOT_DEBUGGER
+        if (UNLIKELY(paramNames.size() > 16)) {
+            this->currentScopeContext->m_parameterUsed = 0xFFFF;
+        }
+#endif
         this->currentScopeContext->m_parameters.resizeWithUninitializedValues(paramNames.size());
         LexicalBlockIndex functionBodyBlockIndex = this->currentScopeContext->m_functionBodyBlockIndex;
         for (size_t i = 0; i < paramNames.size(); i++) {
@@ -524,11 +536,7 @@ public:
             AtomicString as(this->escargotContext, paramNames[i]);
             this->currentScopeContext->m_parameters[i] = as;
 #ifndef ESCARGOT_DEBUGGER
-            if (this->currentScopeContext->m_parameterTable.mayContain(as)) {
-                this->currentScopeContext->m_parameterUsed |= (1 << i);
-            } else {
-                this->currentScopeContext->m_parameterTable.add(as);
-            }
+            this->currentScopeContext->m_parameterTable.add(as);
 #endif
             this->currentScopeContext->insertVarName(as, functionBodyBlockIndex, true, true, true);
         }
@@ -1081,6 +1089,16 @@ public:
                 ret = builder.createIdentifierNode(AtomicString(this->escargotContext, &sv));
             }
         }
+
+#ifndef ESCARGOT_DEBUGGER
+        if (UNLIKELY(ret->asIdentifier()->name() == this->stringArguments)) {
+            ASTScopeContext* scopeCtx = this->currentScopeContext;
+            while (scopeCtx) {
+                scopeCtx->m_parameterUsed = 0xFFFF;
+                scopeCtx = scopeCtx->m_parent;
+            }
+        }
+#endif
 
         if (this->trackUsingNames) {
             this->insertUsingName(ret->asIdentifier()->name());
@@ -2608,6 +2626,9 @@ public:
                 // check callee of CallExpressionNode
                 if (exprNode->isIdentifier() && exprNode->asIdentifier()->name() == escargotContext->staticStrings().eval) {
                     this->currentScopeContext->m_hasEval = true;
+#ifndef ESCARGOT_DEBUGGER
+                    this->currentScopeContext->m_parameterUsed = 0xFFFF;
+#endif
                 }
                 exprNode = this->finalize(this->startNode(startToken), builder.createCallExpressionNode(exprNode, args, optional));
                 if (asyncArrow && this->match(Arrow)) {
