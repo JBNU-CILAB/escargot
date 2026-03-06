@@ -317,8 +317,46 @@ public:
         }
     }
 
+#ifndef ESCARGOT_DEBUGGER
+    void checkUsedParameters(ASTScopeContext* scopeCtx)
+    {
+        AtomicStringTightVector& parameters = this->currentScopeContext->m_parameters;
+
+        for (size_t i = 0; i < parameters.size(); i++) {
+            AtomicString& name = parameters[i];
+            for (size_t j = 0; j < scopeCtx->m_childBlockScopes.size(); j++) {
+                ASTBlockContext& blockCtx = *scopeCtx->m_childBlockScopes[j];
+                if (VectorUtil::findInVector(blockCtx.m_usingNames, name) != VectorUtil::invalidIndex) {
+                    this->currentScopeContext->m_parameterUsed |= (1 << i);
+                    break;
+                } else if (UNLIKELY(scopeCtx->m_parameterUsed == DISABLE_PARAM_CHECK)) {
+                    this->currentScopeContext->m_parameterUsed = DISABLE_PARAM_CHECK;
+                    return;
+                }
+            }
+        }
+
+        // check nested functions
+        size_t childCount = scopeCtx->childCount();
+        if (childCount > 0) {
+            ASTScopeContext* child = scopeCtx->firstChild();
+            for (size_t i = 0; i < childCount; i++) {
+                checkUsedParameters(child);
+                child = child->nextSibling();
+            }
+        }
+    }
+#endif
+
     ASTScopeContext* popScopeContext(ASTScopeContext* lastPushedScopeContext)
     {
+#ifndef ESCARGOT_DEBUGGER
+        if (UNLIKELY(this->currentScopeContext->m_hasEval || this->currentScopeContext->m_hasStringArguments || this->currentScopeContext->m_parameters.size() > 16)) {
+            this->currentScopeContext->m_parameterUsed = DISABLE_PARAM_CHECK;
+        } else {
+            checkUsedParameters(this->currentScopeContext);
+        }
+#endif
         auto ret = this->currentScopeContext;
         this->lastUsingName = AtomicString();
         this->lastPoppedScopeContext = ret;
@@ -1039,6 +1077,12 @@ public:
                 ret = builder.createIdentifierNode(AtomicString(this->escargotContext, &sv));
             }
         }
+
+#ifndef ESCARGOT_DEBUGGER
+        if (UNLIKELY(ret->asIdentifier()->name() == this->stringArguments)) {
+            this->currentScopeContext->m_hasStringArguments = true;
+        }
+#endif
 
         if (this->trackUsingNames) {
             this->insertUsingName(ret->asIdentifier()->name());
@@ -5032,7 +5076,18 @@ public:
                 Node* param = this->parseFormalParameter(builder, options);
 
                 switch (param->type()) {
-                case Identifier:
+                case Identifier: {
+#ifndef ESCARGOT_DEBUGGER
+                    if (this->codeBlock->parameterUsed() & (1 << paramIndex) || this->codeBlock->parameterUsed() == DISABLE_PARAM_CHECK) {
+#endif
+                        Node* init = this->finalize(node, builder.createInitializeParameterExpressionNode(param, paramIndex));
+                        Node* statement = this->finalize(node, builder.createExpressionStatementNode(init));
+                        container->appendChild(statement);
+#ifndef ESCARGOT_DEBUGGER
+                    }
+#endif
+                    break;
+                }
                 case AssignmentPattern:
                 case ArrayPattern:
                 case ObjectPattern: {
@@ -5042,8 +5097,14 @@ public:
                     break;
                 }
                 case RestElement: {
-                    Node* statement = this->finalize(node, builder.createExpressionStatementNode(param));
-                    container->appendChild(statement);
+#ifndef ESCARGOT_DEBUGGER
+                    if (this->codeBlock->parameterUsed() & (1 << paramIndex) || this->codeBlock->parameterUsed() == DISABLE_PARAM_CHECK || param->asRestElement()->argument()->type() != Identifier) {
+#endif
+                        Node* statement = this->finalize(node, builder.createExpressionStatementNode(param));
+                        container->appendChild(statement);
+#ifndef ESCARGOT_DEBUGGER
+                    }
+#endif
                     break;
                 }
                 default: {

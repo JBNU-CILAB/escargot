@@ -311,11 +311,17 @@ struct ASTScopeContext {
     bool m_allowSuperProperty : 1;
     bool m_allowArguments : 1;
     bool m_needRareData : 1;
+#ifndef ESCARGOT_DEBUGGER
+    bool m_hasStringArguments : 1;
+#endif
     unsigned int m_nodeType : 2; // it is actually NodeType but used on FunctionExpression, ArrowFunctionExpression and FunctionDeclaration only
     unsigned int m_functionLength : 16; // represent the number of consecutive identifier parameters from the start of parameter list (function length)
     unsigned int m_parameterCount : 16; // represent the number of parameter element nodes
     LexicalBlockIndex m_functionBodyBlockIndex : 16;
     LexicalBlockIndex m_lexicalBlockIndexFunctionLocatedIn : 16;
+#ifndef ESCARGOT_DEBUGGER
+    uint16_t m_parameterUsed : 16;
+#endif
     ASTScopeContextNameInfoVector m_varNames;
     FunctionContextVarMap *m_varNamesMap;
     AtomicStringTightVector *m_classPrivateNames; // this is needed for direct eval in class & nested class
@@ -696,11 +702,17 @@ struct ASTScopeContext {
         , m_allowSuperProperty(false)
         , m_allowArguments(true)
         , m_needRareData(false)
+#ifndef ESCARGOT_DEBUGGER
+        , m_hasStringArguments(false)
+#endif
         , m_nodeType(ASTNodeType::Program)
         , m_functionLength(0)
         , m_parameterCount(0)
         , m_functionBodyBlockIndex(0)
         , m_lexicalBlockIndexFunctionLocatedIn(LEXICAL_BLOCK_INDEX_MAX)
+#ifndef ESCARGOT_DEBUGGER
+        , m_parameterUsed(0)
+#endif
         , m_varNamesMap(nullptr)
         , m_classPrivateNames(nullptr)
         , m_firstChild(nullptr)
