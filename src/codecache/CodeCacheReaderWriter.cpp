@@ -69,7 +69,9 @@ void CacheStringTable::initAdd(const AtomicString& string)
 
 AtomicString& CacheStringTable::get(size_t index)
 {
-    ASSERT(index < m_table.size());
+    if (index >= m_table.size()) {
+        throw CodeCacheReader::Error("out of range");
+    }
     return m_table[index];
 }
 
@@ -932,6 +934,9 @@ CacheStringTable* CodeCacheReader::loadStringTable(Context* context)
         LChar* buffer = new LChar[maxLength + 1];
         for (size_t i = 0; i < tableSize; i++) {
             size_t length = m_buffer.get<size_t>();
+            if (maxLength < length) {
+                throw CodeCacheReader::Error("invalid maxLength");
+            }
             m_buffer.getData(buffer, length);
             buffer[length] = '\0';
 
@@ -950,6 +955,9 @@ CacheStringTable* CodeCacheReader::loadStringTable(Context* context)
         for (size_t i = 0; i < tableSize; i++) {
             bool is8Bit = m_buffer.get<bool>();
             size_t length = m_buffer.get<size_t>();
+            if (maxLength < length) {
+                throw CodeCacheReader::Error("invalid maxLength");
+            }
 
             if (is8Bit) {
                 m_buffer.getData(lBuffer, length);
@@ -1017,6 +1025,10 @@ void CodeCacheReader::loadByteCodeStream(Context* context, ByteCodeBlock* block)
         for (size_t i = 0; i < relocInfoVector.size(); i++) {
             ByteCodeRelocInfo& info = relocInfoVector[i];
             ByteCode* currentCode = reinterpret_cast<ByteCode*>(code + info.codeOffset);
+
+            if (info.codeOffset >= byteCodeStream.size()) {
+                throw CodeCacheReader::Error("out of range");
+            }
 
 #if defined(ESCARGOT_COMPUTED_GOTO_INTERPRETER)
             Opcode opcode = (Opcode)(size_t)currentCode->m_opcodeInAddress;

@@ -9,6 +9,9 @@ SET (ESCARGOT_THIRDPARTY_CFLAGS)
 SET (ESCARGOT_BUILD_32BIT OFF)
 SET (ESCARGOT_BUILD_64BIT OFF)
 SET (ESCARGOT_BUILD_64BIT_LARGE OFF)
+IF (ESCARGOT_ASAN)
+    SET (ESCARGOT_BUILD_64BIT_LARGE ON)
+ENDIF()
 
 # clang-cl defines ${CMAKE_CXX_COMPILER_ID} "Clang" and ${CMAKE_CXX_COMPILER_FRONTEND_VARIANT} "MSVC"
 SET (COMPILER_CLANG_CL OFF)
@@ -75,7 +78,8 @@ ELSEIF (${CMAKE_CXX_COMPILER_ID} MATCHES  "Clang") #include Clang and AppleClang
         -Wno-type-limits -Wno-unused-result -Wno-unused-variable -Wno-invalid-offsetof -Wno-unused-function
         -Wno-deprecated-declarations -Wno-parentheses-equality -Wno-dynamic-class-memaccess -Wno-deprecated-register
         -Wno-expansion-to-defined -Wno-return-type -Wno-overloaded-virtual -Wno-unused-private-field -Wno-deprecated-copy -Wno-atomic-alignment
-        -Wno-ambiguous-reversed-operator -Wno-deprecated-enum-enum-conversion -Wno-deprecated-enum-float-conversion -Wno-braced-scalar-init -Wno-unused-parameter
+        -Wno-ambiguous-reversed-operator -Wno-deprecated-enum-enum-conversion -Wno-deprecated-enum-float-conversion -Wno-braced-scalar-init -Wno-unused-parameter -Wno-deprecated-literal-operator -Wno-cast-function-type-mismatch
+        -Wno-unknown-warning-option
     )
     IF (CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 10)
         # this feature supported after clang version 11
